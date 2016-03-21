@@ -44,6 +44,7 @@ FIXIT_OPENING_BUFFERS_MESSAGE_FORMAT = (
     'buffers. The quickfix list can then be used to review the changes. No '
     'files will be written to disk. Do you wish to continue?' )
 
+SKIPPED_RANGE_SECTION_HIGHLIGHT_NAME = 'SkippedRangeSection'
 
 def CurrentLineAndColumn():
   """Returns the 0-based current line and 0-based current column."""
@@ -199,22 +200,23 @@ def UnPlaceDummySign( sign_id, buffer_num ):
     vim.command( 'sign unplace {0} buffer={1}'.format( sign_id, buffer_num ) )
 
 
-def ClearYcmSyntaxMatches():
+def ClearGenericSyntaxMatches(prefix):
   matches = VimExpressionToPythonType( 'getmatches()' )
   for match in matches:
-    if match[ 'group' ].startswith( 'Ycm' ):
+    if match[ 'group' ].startswith( prefix ):
       vim.eval( 'matchdelete({0})'.format( match[ 'id' ] ) )
 
+def ClearYcmSyntaxMatches():
+  ClearGenericSyntaxMatches( 'Ycm' )
 
-# Returns the ID of the newly added match
-# Both line and column numbers are 1-based
-def AddDiagnosticSyntaxMatch( line_num,
+def ClearSkippedRangesSyntaxMatches():
+  ClearGenericSyntaxMatches( SKIPPED_RANGE_SECTION_HIGHLIGHT_NAME )
+
+def AddGenericSyntaxMatchGroup( group,
+                              line_num,
                               column_num,
                               line_end_num = None,
-                              column_end_num = None,
-                              is_error = True ):
-  group = 'YcmErrorSection' if is_error else 'YcmWarningSection'
-
+                              column_end_num = None ):
   if not line_end_num:
     line_end_num = line_num
 
@@ -230,6 +232,29 @@ def AddDiagnosticSyntaxMatch( line_num,
       "matchadd('{0}', '\%{1}l\%{2}c\_.\\{{-}}\%{3}l\%{4}c')".format(
         group, line_num, column_num, line_end_num, column_end_num ) )
 
+# Returns the ID of the newly added match
+# Both line and column numbers are 1-based
+def AddDiagnosticSyntaxMatch( line_num,
+                              column_num,
+                              line_end_num = None,
+                              column_end_num = None,
+                              is_error = True ):
+  group = 'YcmErrorSection' if is_error else 'YcmWarningSection'
+
+  return AddGenericSyntaxMatchGroup( group,
+                                 line_num,
+                                 column_num,
+                                 line_end_num,
+                                 column_end_num )
+
+def AddSkippedRangeSyntaxMatch( line_num,
+                                line_end_num = None):
+
+  return AddGenericSyntaxMatchGroup(SKIPPED_RANGE_SECTION_HIGHLIGHT_NAME,
+                                    line_num,
+                                    1,
+                                    line_end_num,
+                                    1)
 
 # Clamps the line and column numbers so that they are not past the contents of
 # the buffer. Numbers are 1-based.
@@ -243,7 +268,7 @@ def LineAndColumnNumbersClamped( line_num, column_num ):
 
   max_column = len( vim.current.buffer[ new_line_num - 1 ] )
   if column_num and column_num > max_column:
-    new_column_num = max_column
+    new_column_num = max_column + 1
 
   return new_line_num, new_column_num
 
