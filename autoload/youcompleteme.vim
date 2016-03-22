@@ -301,6 +301,10 @@ function! s:SetUpSyntaxHighlighting()
       highlight link YcmWarningSection SpellCap
     endif
   endif
+
+  if !hlexists( 'SkippedRangeSection' )
+      highlight link SkippedRangeSection Comment
+  endif
 endfunction
 
 
