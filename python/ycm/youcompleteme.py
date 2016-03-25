@@ -36,6 +36,7 @@ from ycm import paths, vimsupport
 from ycmd import utils
 from ycmd.request_wrap import RequestWrap
 from ycm.diagnostic_interface import DiagnosticInterface
+from ycm.skipped_ranges_interface import SkippedRangesInterface
 from ycm.omni_completer import OmniCompleter
 from ycm import syntax_parse
 from ycm.client.ycmd_keepalive import YcmdKeepalive
@@ -93,10 +94,12 @@ class YouCompleteMe( object ):
     self._user_options = user_options
     self._user_notified_about_crash = False
     self._diag_interface = DiagnosticInterface( user_options )
+    self._ranges_interface = SkippedRangesInterface( user_options )
     self._omnicomp = OmniCompleter( user_options )
     self._latest_file_parse_request = None
     self._latest_completion_request = None
     self._latest_diagnostics = []
+    self._latest_skipped_ranges = []
     self._server_stdout = None
     self._server_stderr = None
     self._server_popen = None
@@ -494,6 +497,9 @@ class YouCompleteMe( object ):
   def UpdateDiagnosticInterface( self ):
     self._diag_interface.UpdateWithNewDiagnostics( self._latest_diagnostics )
 
+  def UpdateSkippedRangesInterface( self ):
+    self._ranges_interface.UpdateWithNewSkippedRanges( self._latest_skipped_ranges )
+
 
   def FileParseRequestReady( self, block = False ):
     return bool( self._latest_file_parse_request and
@@ -508,8 +514,18 @@ class YouCompleteMe( object ):
          self.NativeFiletypeCompletionUsable() ):
 
       if self.ShouldDisplayDiagnostics():
-        self._latest_diagnostics = self._latest_file_parse_request.Response()
+        response = self._latest_file_parse_request.Response()
+
+        if isinstance( response, dict):
+          self._latest_diagnostics = response['diagnostics']
+          self._latest_skipped_ranges = response['skipped_ranges']
+        else:
+          self._latest_diagnostics = response
+          self._latest_skipped_ranges = []
+
+
         self.UpdateDiagnosticInterface()
+        self.UpdateSkippedRangesInterface()
       else:
         # YCM client has a hard-coded list of filetypes which are known
         # to support diagnostics, self.DiagnosticUiSupportedForCurrentFiletype()

@@ -141,6 +141,9 @@ let g:ycm_enable_diagnostic_highlighting =
       \ get( g:, 'ycm_enable_diagnostic_highlighting',
       \ get( g:, 'syntastic_enable_highlighting', 1 ) )
 
+let g:ycm_enable_skipped_ranges_highlighting =
+      \ get( g:, 'ycm_enable_skipped_ranges_highlighting', 1 )
+
 let g:ycm_echo_current_diagnostic =
       \ get( g:, 'ycm_echo_current_diagnostic',
       \ get( g:, 'syntastic_echo_current_error', 1 ) )
