@@ -37,6 +37,7 @@ from ycmd import utils
 from ycmd.request_wrap import RequestWrap
 from ycm.diagnostic_interface import DiagnosticInterface
 from ycm.skipped_ranges_interface import SkippedRangesInterface
+from ycm.cache import BufferDataCache
 from ycm.omni_completer import OmniCompleter
 from ycm import syntax_parse
 from ycm.client.ycmd_keepalive import YcmdKeepalive
@@ -100,6 +101,7 @@ class YouCompleteMe( object ):
     self._latest_completion_request = None
     self._latest_diagnostics = []
     self._latest_skipped_ranges = []
+    self.__buffer_data_cache = BufferDataCache()
     self._server_stdout = None
     self._server_stderr = None
     self._server_popen = None
@@ -280,6 +282,17 @@ class YouCompleteMe( object ):
       return
     SendEventNotificationAsync( 'BufferUnload',
                                 { 'unloaded_buffer': deleted_buffer_file } )
+    self.ClearFileDiagnostics( deleted_buffer_file )
+
+
+  def GetLatestDiagnosticsFromCache( self ):
+    cached = self.GetFileDiagnostics( vim.current.buffer )
+    if cached:
+      self._latest_diagnostics = cached.diagnostics
+      self._latest_skipped_ranges = cached.skipped_ranges
+    else:
+      self._latest_diagnostics = []
+      self._latest_skipped_ranges = []
 
 
   def OnBufferVisit( self ):
@@ -287,7 +300,13 @@ class YouCompleteMe( object ):
       return
     extra_data = {}
     _AddUltiSnipsDataIfNeeded( extra_data )
+
+    self.GetLatestDiagnosticsFromCache()
+
     SendEventNotificationAsync( 'BufferVisit', extra_data )
+
+    self.UpdateDiagnosticInterface()
+    self.UpdateSkippedRangesInterface()
 
 
   def OnInsertLeave( self ):
@@ -498,13 +517,22 @@ class YouCompleteMe( object ):
     self._diag_interface.UpdateWithNewDiagnostics( self._latest_diagnostics )
 
   def UpdateSkippedRangesInterface( self ):
-    self._ranges_interface.UpdateWithNewSkippedRanges( self._latest_skipped_ranges )
+    self._ranges_interface.UpdateWithNewSkippedRanges(
+            self._latest_skipped_ranges )
 
 
   def FileParseRequestReady( self, block = False ):
     return bool( self._latest_file_parse_request and
                  ( block or self._latest_file_parse_request.Done() ) )
 
+  def StoreFileDiagnostics( self, diagnostics, skipped_ranges ):
+    self.__buffer_data_cache.Store( vim.current.buffer, diagnostics, skipped_ranges )
+
+  def GetFileDiagnostics( self, filename ):
+    return self.__buffer_data_cache.Get( filename )
+
+  def ClearFileDiagnostics( self, filename ):
+    self.__buffer_data_cache.Clear( filename )
 
   def HandleFileParseRequest( self, block = False ):
     # Order is important here:
@@ -523,6 +551,8 @@ class YouCompleteMe( object ):
           self._latest_diagnostics = response
           self._latest_skipped_ranges = []
 
+        self.StoreFileDiagnostics( self._latest_diagnostics,
+                                   self._latest_skipped_ranges )
 
         self.UpdateDiagnosticInterface()
         self.UpdateSkippedRangesInterface()
